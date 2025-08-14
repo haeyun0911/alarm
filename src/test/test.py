@@ -24,21 +24,25 @@ while True:
     # scaleFactor: 이미지 크기 축소 비율, minNeighbors: 얼굴 후보 지점의 최소 개수
     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
     
+    if len(faces) > 0:
     # 감지된 얼굴에 사각형 그리기
-    for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
-        text = "stop alarm"
-        
-        org = (10, 30)  # 텍스트 출력 위치 (x, y)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.8
-        color = (0, 255, 0) 
-        thickness = 2
+            text = "알람 정지"
             
-        # 결과 화면에 표시
-        cv2.putText(frame, text, org, font, font_scale, color, thickness)
-    cv2.imshow('Face Detection', frame)
+            org = (10, 30)  # 텍스트 출력 위치 (x, y)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.8
+            color = (0, 255, 0) 
+            thickness = 2
+                
+            # 결과 화면에 표시
+            cv2.putText(frame, text, org, font, font_scale, color, thickness)
+        cv2.imshow('Face Detection', frame)
+
+    else:
+        text = "5초 후에 알람 재시작"
     
     # 'q' 키를 누르면 종료
     if cv2.waitKey(1) & 0xFF == ord('q'):
