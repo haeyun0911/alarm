@@ -1,8 +1,11 @@
 import cv2
+import numpy as np
+from PIL import ImageFont, ImageDraw, Image
 
 # Haar Cascade XML 파일 경로 지정
 face_cascade = cv2.CascadeClassifier('../../assets/haarcascade_frontalface_default.xml')
-
+font_path = "C:/Windows/Fonts/malgun.ttf"
+font = ImageFont.truetype(font_path, 30)
 # 웹캠 열기
 cap = cv2.VideoCapture(0)
 
@@ -36,12 +39,11 @@ while True:
         text = "5초 후에 알람 재시작"
         color = (0, 0, 255)
 
-    org = (10, 30)  # 텍스트 출력 위치 (x, y)
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.8
-    thickness = 2
+    frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(frame_pil)
+    draw.text((10, 10), text, font=font, fill=(color[2], color[1], color[0]))
+    frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
 
-    cv2.putText(frame, text, org, font, font_scale, color, thickness)
     cv2.imshow('Face Detection', frame)
     # 'q' 키를 누르면 종료
     if cv2.waitKey(1) & 0xFF == ord('q'):
