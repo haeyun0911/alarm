@@ -1,7 +1,7 @@
 import cv2
 
 # Haar Cascade XML 파일 경로 지정
-face_cascade = cv2.CascadeClassifier('../assets/haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier('../../assets/haarcascade_frontalface_default.xml')
 
 # 웹캠 열기
 cap = cv2.VideoCapture(0)
@@ -28,15 +28,16 @@ while True:
     for (x, y, w, h) in faces:
         cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
-    text = "알람 정지"
-    
-    org = (10, 30)  # 텍스트 출력 위치 (x, y)
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.8
-    color = (0, 255, 0) 
-    thickness = 2
+        text = "stop alarm"
         
-    # 결과 화면에 표시
+        org = (10, 30)  # 텍스트 출력 위치 (x, y)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.8
+        color = (0, 255, 0) 
+        thickness = 2
+            
+        # 결과 화면에 표시
+        cv2.putText(frame, text, org, font, font_scale, color, thickness)
     cv2.imshow('Face Detection', frame)
     
     # 'q' 키를 누르면 종료
