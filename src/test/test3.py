@@ -1,147 +1,149 @@
 import cv2
+import time
+import numpy as np
 from ultralytics import YOLO
 import mediapipe as mp
-import time
-import math
+from PIL import ImageFont, ImageDraw, Image
 
-# ----------------------------
-# 모델 초기화
-# ----------------------------
-model = YOLO("yolo11n.pt")  # 경량 YOLO 모델
+# -----------------------------
+# YOLO 모델 (사람 탐지 전용)
+# -----------------------------
+model = YOLO("yolo11n.pt")
+
+# -----------------------------
+# Mediapipe Pose 초기화
+# -----------------------------
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose()
 
-# ----------------------------
-# 카메라 열기
-# ----------------------------
-cap = cv2.VideoCapture(0)
+# -----------------------------
+# Haar Cascade (얼굴/눈 인식)
+# -----------------------------
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
 
-# ----------------------------
-# 알람 관련 변수
-# ----------------------------
-alarm_active = False
-eye_closed_start = None
+# -----------------------------
+# 한글 폰트 설정 (PIL)
+# -----------------------------
+font_path = "C:/Windows/Fonts/malgun.ttf"  # 경로 맞게 수정
+font = ImageFont.truetype(font_path, 30)
+
+# -----------------------------
+# 알람 상태 관리 변수
+# -----------------------------
+alarm_on = False
+closed_eye_start = None
 lying_start = None
 
-# ----------------------------
-# YOLO 최적화 변수
-# ----------------------------
-frame_count = 0
-yolo_interval = 5   # YOLO 실행 간격 (5프레임마다 실행)
-last_box = None     # 마지막 사람 영역 저장
+# -----------------------------
+# 자세 판별 함수
+# -----------------------------
+def get_slope(p1, p2):
+    if p2[0] - p1[0] == 0:
+        return float("inf")
+    return (p2[1] - p1[1]) / (p2[0] - p1[0])
 
-# ----------------------------
-# 눈 감김 상태 체크 (예시: 간단히 면적 비율 활용)
-# ----------------------------
-def is_eye_closed(landmarks):
-    # 여기서는 간단히 "눈 감김 여부"를 랜덤으로 True/False로 판단한다고 가정
-    # 실제 적용하려면 Mediapipe FaceMesh 추가 필요
-    return False  
+def check_posture(landmarks, w, h):
+    # 어깨, 엉덩이 좌표
+    l_shoulder = (int(landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x * w),
+                  int(landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y * h))
+    r_shoulder = (int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x * w),
+                  int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * h))
+    l_hip = (int(landmarks[mp_pose.PoseLandmark.LEFT_HIP].x * w),
+             int(landmarks[mp_pose.PoseLandmark.LEFT_HIP].y * h))
+    r_hip = (int(landmarks[mp_pose.PoseLandmark.RIGHT_HIP].x * w),
+             int(landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * h))
 
-# ----------------------------
-# 기울기로 누워있는지 판단
-# ----------------------------
-def is_lying_pose(landmarks, img_w, img_h):
-    try:
-        l_sh = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value]
-        r_sh = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value]
-        l_hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP.value]
-        r_hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value]
+    # 기울기 계산
+    shoulder_slope = abs(get_slope(l_shoulder, r_shoulder))
+    hip_slope = abs(get_slope(l_hip, r_hip))
 
-        # 좌표 변환
-        l_sh = (int(l_sh.x * img_w), int(l_sh.y * img_h))
-        r_sh = (int(r_sh.x * img_w), int(r_sh.y * img_h))
-        l_hip = (int(l_hip.x * img_w), int(l_hip.y * img_h))
-        r_hip = (int(r_hip.x * img_w), int(r_hip.y * img_h))
+    # 수평에 가까우면 누워있음
+    if shoulder_slope < 0.3 and hip_slope < 0.3:
+        return "lying"
+    else:
+        return "upright"
 
-        # 어깨선, 엉덩이선 기울기 (radian → degree)
-        shoulder_angle = math.degrees(math.atan2(r_sh[1]-l_sh[1], r_sh[0]-l_sh[0]))
-        hip_angle = math.degrees(math.atan2(r_hip[1]-l_hip[1], r_hip[0]-l_hip[0]))
+# -----------------------------
+# 비디오 캡처
+# -----------------------------
+cap = cv2.VideoCapture(0)
 
-        # 수평에 가까우면 누움
-        if abs(shoulder_angle) < 20 and abs(hip_angle) < 20:
-            return True
-    except:
-        pass
-    return False
-
-# ----------------------------
-# 메인 루프
-# ----------------------------
-while cap.isOpened():
+while True:
     ret, frame = cap.read()
     if not ret:
         break
+    h, w, _ = frame.shape
 
-    frame_count += 1
-    img_h, img_w, _ = frame.shape
-    person_box = None
+    # YOLO: 사람 감지
+    results = model(frame, verbose=False)[0]
+    persons = [box for box in results.boxes if int(box.cls[0]) == 0]  # class=0 → person
 
-    # ---------------- YOLO (5프레임마다 실행) ----------------
-    if frame_count % yolo_interval == 0:
-        results = model(frame, verbose=False)
-        biggest_person = None
-        max_area = 0
-        for r in results:
-            for box in r.boxes:
-                cls = int(box.cls[0])
-                if model.names[cls] == "person":
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    area = (x2-x1)*(y2-y1)
-                    if area > max_area:
-                        max_area = area
-                        biggest_person = (x1, y1, x2, y2)
-        last_box = biggest_person
+    text = "사람 없음"
+    color = (0, 255, 0)
 
-    person_box = last_box
-
-    # ---------------- Pose & 알람 체크 ----------------
-    if person_box:
-        x1, y1, x2, y2 = person_box
+    if persons:
+        # 첫 번째 사람만 추적
+        x1, y1, x2, y2 = map(int, persons[0].xyxy[0])
         roi = frame[y1:y2, x1:x2]
-        rgb_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
-        result_pose = pose.process(rgb_roi)
 
-        if result_pose.pose_landmarks:
-            landmarks = result_pose.pose_landmarks.landmark
-            lying = is_lying_pose(landmarks, roi.shape[1], roi.shape[0])
-            eyes_closed = is_eye_closed(landmarks)
+        # Haar Cascade: 얼굴 & 눈
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-            if eyes_closed:
-                if eye_closed_start is None:
-                    eye_closed_start = time.time()
-                elif time.time() - eye_closed_start > 5:
-                    alarm_active = True
-            else:
-                eye_closed_start = None
+        eyes_open = False
+        if len(faces) > 0:
+            for (fx, fy, fw, fh) in faces:
+                face_roi = gray[fy:fy+fh, fx:fx+fw]
+                eyes = eye_cascade.detectMultiScale(face_roi)
+                if len(eyes) > 0:
+                    eyes_open = True
 
-            if lying:
-                if lying_start is None:
-                    lying_start = time.time()
-                elif time.time() - lying_start > 5:
-                    alarm_active = True
-            else:
-                lying_start = None
+        # Mediapipe Pose: 관절 추출
+        results_pose = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        posture = None
+        if results_pose.pose_landmarks:
+            posture = check_posture(results_pose.pose_landmarks.landmark, w, h)
 
-            # 해제 조건
-            if not lying and not eyes_closed:
-                alarm_active = False
+        # -----------------------------
+        # 알람 조건 처리
+        # -----------------------------
+        if not eyes_open:
+            if closed_eye_start is None:
+                closed_eye_start = time.time()
+            elif time.time() - closed_eye_start >= 5:
+                alarm_on = True
+                text = "알람: 눈을 감음"
+                color = (0, 0, 255)
+        else:
+            closed_eye_start = None
 
-        # 박스 그리기
-        cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
+        if posture == "lying":
+            if lying_start is None:
+                lying_start = time.time()
+            elif time.time() - lying_start >= 5:
+                alarm_on = True
+                text = "알람: 누워있음"
+                color = (0, 0, 255)
+        else:
+            lying_start = None
 
-    else:
-        # 사람 없으면 알람 해제
-        alarm_active = False
+        # 알람 해제 조건
+        if (eyes_open and posture != "lying") or (len(faces) == 0):
+            alarm_on = False
+            text = "정상 상태"
+            color = (0, 255, 0)
 
-    # ---------------- 상태 표시 ----------------
-    status = "ALARM!" if alarm_active else "SAFE"
-    color = (0,0,255) if alarm_active else (0,255,0)
-    cv2.putText(frame, status, (20,50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, color, 3)
+    # -----------------------------
+    # 화면에 한글 출력 (PIL)
+    # -----------------------------
+    frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(frame_pil)
+    draw.text((10, 10), text, font=font, fill=(color[2], color[1], color[0]))
+    frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
 
     cv2.imshow("Alarm System", frame)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == 27:  # ESC 종료
         break
 
 cap.release()
