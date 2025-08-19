@@ -1,11 +1,15 @@
 import cv2
 import numpy as np
+import time
 from PIL import ImageFont, ImageDraw, Image
 
 # Haar Cascade XML 파일 경로 지정
 face_cascade = cv2.CascadeClassifier('../../assets/haarcascade_frontalface_default.xml')
+profile_cascade = cv2.CascadeClassifier('../../assets/haarcascade_profileface.xml')
+
 font_path = "C:/Windows/Fonts/malgun.ttf"
 font = ImageFont.truetype(font_path, 30)
+
 # 웹캠 열기
 cap = cv2.VideoCapture(0)
 
@@ -13,42 +17,65 @@ if not cap.isOpened():
     print("웹캠을 열 수 없습니다.")
     exit()
 
+# 얼굴 안 보이기 시작한 시간 기록용 변수
+no_face_start = None  
+alarm_active = False  # 알람 상태 (True=재시작, False=중지)
+
 while True:
-    # 프레임 읽기
     ret, frame = cap.read()
     if not ret:
         print("프레임을 읽을 수 없습니다. 종료합니다.")
         break
-    
-    # 흑백 이미지로 변환 (얼굴 감지는 흑백 이미지에서 더 효과적입니다)
+
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    
+
     # 얼굴 감지
-    # scaleFactor: 이미지 크기 축소 비율, minNeighbors: 얼굴 후보 지점의 최소 개수
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-    
+    faces_frontal = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
+    faces_profile = profile_cascade.detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
+
+    # 반전 이미지에서도 옆모습 찾기
+    gray_flipped = cv2.flip(gray, 1)
+    faces_profile_flipped = profile_cascade.detectMultiScale(gray_flipped, 1.1, 5, minSize=(30, 30))
+
+    faces_profile_flipped_corrected = []
+    for (x, y, w, h) in faces_profile_flipped:
+        faces_profile_flipped_corrected.append((gray.shape[1] - x - w, y, w, h))
+
+    faces = list(faces_frontal) + list(faces_profile) + list(faces_profile_flipped_corrected)
+
     if len(faces) > 0:
-    # 감지된 얼굴에 사각형 그리기
+        # 얼굴 보임 → 알람 중지
         for (x, y, w, h) in faces:
             cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-
         text = "알람 중지"
         color = (0, 255, 0)
-        
+        no_face_start = None       # 얼굴이 보이니 타이머 초기화
+        alarm_active = False
     else:
-        text = "5초 후에 알람 재시작"
-        color = (0, 0, 255)
+        # 얼굴 없음
+        if no_face_start is None:
+            no_face_start = time.time()  # 처음 못 본 시점 기록
 
+        elapsed = time.time() - no_face_start
+        if elapsed >= 5:  # 5초 이상 얼굴 없음 → 알람 재시작
+            text = "알람 재시작"
+            color = (0, 0, 255)
+            alarm_active = True
+        else:
+            # 5초 대기 중
+            remaining = int(5 - elapsed)
+            text = f"{remaining}초 후 알람 재시작"
+            color = (0, 165, 255)  # 주황색
+
+    # PIL로 한글 출력
     frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(frame_pil)
     draw.text((10, 10), text, font=font, fill=(color[2], color[1], color[0]))
     frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
 
     cv2.imshow('Face Detection', frame)
-    # 'q' 키를 누르면 종료
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# 종료 시 자원 해제
 cap.release()
 cv2.destroyAllWindows()
