@@ -32,7 +32,7 @@ while cap.isOpened():
     if not ret:
         break
 
-    results = model(frame)  # YOLO 탐지
+    results = model(frame, vervbose=False)  # YOLO 탐지
     text = "사람 없음"
     color = (0, 0, 255)
 
