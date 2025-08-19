@@ -7,6 +7,7 @@ from PIL import ImageFont, ImageDraw, Image
 
 face_cascade = cv2.CascadeClassifier('../../assets/haarcascade_frontalface_default.xml')
 profile_cascade = cv2.CascadeClassifier('../../assets/haarcascade_profileface.xml')
+eye_cascade = cv2.CascadeClassifier('../../assets/haarcascade_eye.xml')
 
 font_path = "C:/Windows/Fonts/malgun.ttf"
 font = ImageFont.truetype(font_path, 30)
@@ -19,6 +20,9 @@ pose = mp_pose.Pose(static_image_mode=False, model_complexity=1,
                     enable_segmentation=False, min_detection_confidence=0.5)
 
 cap = cv2.VideoCapture(0)
+
+no_face_start = None
+no_eye_start = None
 
 def get_angle(p1, p2):
     """두 점을 연결한 선의 기울기 각도(도 단위)"""
