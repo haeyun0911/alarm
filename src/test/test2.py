@@ -2,7 +2,14 @@ from ultralytics import YOLO
 import cv2
 import mediapipe as mp
 import numpy as np
+import time
+from PIL import ImageFont, ImageDraw, Image
 
+face_cascade = cv2.CascadeClassifier('../../assets/haarcascade_frontalface_default.xml')
+profile_cascade = cv2.CascadeClassifier('../../assets/haarcascade_profileface.xml')
+
+font_path = "C:/Windows/Fonts/malgun.ttf"
+font = ImageFont.truetype(font_path, 30)
 # YOLO 모델 불러오기
 model = YOLO("yolo11n.pt")  # 필요시 yolo11s/m.pt로 변경
 
@@ -85,7 +92,11 @@ while cap.isOpened():
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
 
-    cv2.putText(frame, text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3, cv2.LINE_AA)
+    # PIL로 한글 출력
+    frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(frame_pil)
+    draw.text((10, 10), text, font=font, fill=(color[2], color[1], color[0]))
+    frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
     cv2.imshow("YOLO + Mediapipe Pose (1 person)", frame)
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
