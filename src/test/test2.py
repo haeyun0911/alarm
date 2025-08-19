@@ -11,7 +11,7 @@ profile_cascade = cv2.CascadeClassifier('../../assets/haarcascade_profileface.xm
 font_path = "C:/Windows/Fonts/malgun.ttf"
 font = ImageFont.truetype(font_path, 30)
 # YOLO 모델 불러오기
-model = YOLO("yolo11n.pt")  # 필요시 yolo11s/m.pt로 변경
+model = YOLO("yolo11n.pt")
 
 # Mediapipe Pose 초기화
 mp_pose = mp.solutions.pose
