@@ -14,7 +14,7 @@ except Exception as e:
 
 # 2. Mediapipe Pose 초기화
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)#신뢰도 설정
 mp_drawing = mp.solutions.drawing_utils
 
 # 3. 한글 폰트 설정
@@ -38,15 +38,16 @@ def check_posture(landmarks):
     r_shoulder = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER]
     l_hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP]
     r_hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
-
+# 4점 모두 가시성 0.6 초과일시 판별
     if not all(p.visibility > 0.6 for p in [l_shoulder, r_shoulder, l_hip, r_hip]):
         return "unknown"
 
+# 좌우 어깨, 엉덩이의 중심점 계산
     shoulder_center_x = (l_shoulder.x + r_shoulder.x) / 2
     shoulder_center_y = (l_shoulder.y + r_shoulder.y) / 2
     hip_center_x = (l_hip.x + r_hip.x) / 2
     hip_center_y = (l_hip.y + r_hip.y) / 2
-
+# 두 중심점의 수평거리와 수직거리
     dx = abs(shoulder_center_x - hip_center_x)
     dy = abs(shoulder_center_y - hip_center_y)
 
@@ -75,7 +76,7 @@ while True:
 
     status_text = "사람 없음"
     text_color = (0, 255, 0)
-
+# 한명 이상일시 가장 큰 박스에 잡힌 사람을 대표인물로 선택
     if len(person_boxes) > 0:
         main_person_box = max(person_boxes, key=lambda box: (box[2]-box[0])*(box[3]-box[1]))
         x1, y1, x2, y2 = map(int, main_person_box)
@@ -83,14 +84,16 @@ while True:
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         pose_results = pose.process(rgb_frame)
 
+        # 기본값 unknown
         posture = "unknown"
+        # 랜드마크가 있다면
         if pose_results.pose_landmarks:
             mp_drawing.draw_landmarks(
                 frame, pose_results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
                 landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=2),
                 connection_drawing_spec=mp_drawing.DrawingSpec(color=(0,0,255), thickness=2, circle_radius=2)
             )
-            posture = check_posture(pose_results.pose_landmarks.landmark)
+            posture = check_posture(pose_results.pose_landmarks.landmark)# 자세를 판별
 
         if posture == "lying":
             if lying_start_time is None:
