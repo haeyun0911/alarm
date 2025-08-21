@@ -60,8 +60,8 @@ def check_posture(landmarks):
         return "lying"
 
 # 6. 비디오 캡처 시작 (파일 경로를 직접 입력)
-
-cap = cv2.VideoCapture("../../assets/3.mp4")
+video_path = "../../assets/3.mp4"
+cap = cv2.VideoCapture(video_path)
 if not cap.isOpened():
     print("영상 파일을 열 수 없습니다.")
     exit()
