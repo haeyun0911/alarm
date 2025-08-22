@@ -58,7 +58,7 @@ def check_posture(landmarks):
     return "upright" if is_upright else "lying"
 
 # 6. 비디오 캡처 시작
-video_path = "../../assets/4.mp4"
+video_path = "../../assets/2.mp4"
 cap = cv2.VideoCapture(video_path)
 if not cap.isOpened():
     print("영상 파일을 열 수 없습니다.")
