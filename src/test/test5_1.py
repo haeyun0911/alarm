@@ -60,7 +60,7 @@ def check_posture(landmarks):
         return "lying"
 
 # 6. 비디오 캡처 시작 (파일 경로를 직접 입력)
-video_path = "../../assets/3.mp4"
+video_path = "../../assets/4.mp4"
 cap = cv2.VideoCapture(video_path)
 if not cap.isOpened():
     print("영상 파일을 열 수 없습니다.")
@@ -73,8 +73,8 @@ while True:
         print("영상 끝에 도달했거나 파일을 읽을 수 없습니다. 프로그램을 종료합니다.")
         break
     original_height, original_width = frame.shape[:2]
-    new_width = int(original_width / 2)
-    new_height = int(original_height / 2)
+    new_width = int(original_width / 3)
+    new_height = int(original_height / 3)
     resized_frame = cv2.resize(frame, (new_width, new_height))
     results = model(resized_frame, verbose=False, classes=[0])
     person_boxes = results[0].boxes.xyxy.cpu().numpy()
